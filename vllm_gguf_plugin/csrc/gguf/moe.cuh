@@ -29,11 +29,15 @@ static __device__ __forceinline__ void moe_q(
     token_offs[i / nwarps] = sorted_token_ids[col_dst_0 + threadIdx.y + i];
   }
 
-  const int exp_idx = expert_ids[blockIdx.y];
-  if (exp_idx > 255 || exp_idx < 0) return;
-  if (blockIdx.y * mmq_x > num_tokens_post_padded[0]) return;
+  // Blocks at or past num_tokens_post_padded hold no tokens and their expert_ids
+  // entry may be unset, so decide before reading it.
+  if (blockIdx.y * mmq_x >= num_tokens_post_padded[0]) return;
 
-  const block_q_t* x = (const block_q_t*)((char*)vx + exp_idx * exp_stride);
+  const int exp_idx = expert_ids[blockIdx.y];
+  if (exp_idx < 0) return;
+
+  const block_q_t* x =
+      (const block_q_t*)((char*)vx + (size_t)exp_idx * (size_t)exp_stride);
   const block_q8_1* y = (const block_q8_1*)(vy);
 
   int* tile_x_ql = nullptr;
